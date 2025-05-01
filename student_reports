@@ -1,0 +1,96 @@
+Create Table Statements : 
+=======================
+
+CREATE TABLE students (
+    student_id INT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    major VARCHAR(100) NOT NULL
+);
+
+CREATE TABLE courses (
+    course_id INT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    credits INT NOT NULL,
+    major VARCHAR(100) NOT NULL,
+    mandatory BOOLEAN NOT NULL
+);
+
+CREATE TABLE enrollments (
+    student_id INT NOT NULL REFERENCES students(student_id),
+    course_id INT NOT NULL REFERENCES courses(course_id),
+    semester VARCHAR(50) NOT NULL,
+    grade CHAR(1) NOT NULL,
+    gpa NUMERIC(2, 1) NOT NULL
+);
+
+INSERT INTO students (student_id, name, major) VALUES
+(1, 'Alice', 'Computer Science'),
+(2, 'Bob', 'Computer Science'),
+(3, 'Charlie', 'Mathematics'),
+(4, 'David', 'Mathematics');
+
+INSERT INTO courses (course_id, name, credits, major, mandatory) VALUES
+(101, 'Algorithms', 3, 'Computer Science', true),
+(102, 'Data Structures', 3, 'Computer Science', true),
+(103, 'Calculus', 4, 'Mathematics', true),
+(104, 'Linear Algebra', 4, 'Mathematics', true),
+(105, 'Machine Learning', 3, 'Computer Science', false),
+(106, 'Probability', 3, 'Mathematics', false),
+(107, 'Operating Systems', 3, 'Computer Science', false),
+(108, 'Statistics', 3, 'Mathematics', false);
+
+INSERT INTO enrollments (student_id, course_id, semester, grade, gpa) VALUES
+(1, 101, 'Fall 2023', 'A', 4.0),
+(1, 102, 'Spring 2023', 'A', 4.0),
+(1, 105, 'Spring 2023', 'A', 4.0),
+(1, 107, 'Fall 2023', 'B', 3.5),
+(2, 101, 'Fall 2023', 'A', 4.0),
+(2, 102, 'Spring 2023', 'B', 3.0),
+(3, 103, 'Fall 2023', 'A', 4.0),
+(3, 104, 'Spring 2023', 'A', 4.0),
+(3, 106, 'Spring 2023', 'A', 4.0),
+(3, 108, 'Fall 2023', 'B', 3.5),
+(4, 103, 'Fall 2023', 'B', 3.0),
+(4, 104, 'Spring 2023', 'B', 3.0);
+
+Problem Statement : 
+Write a solution to find the students who meet the following criteria:
+
+1. Have taken all mandatory courses and at least two elective courses offered in their major.
+2. Achieved a grade of A in all mandatory courses and at least B in elective courses.
+3. Maintained an average GPA of at least 2.5 across all their courses (including those outside their major).
+
+Return the result table ordered by student_id in ascending order.
+
+
+
+MS SQL Server management studio solution:
+
+
+/*Maintained an average GPA of at least 2.5 across all their courses (including those outside their major)*/
+with valid_student  as (select avg(gpa) average_gpa ,student_id  from [enrollments] group by student_id having  avg(gpa)>2.5),
+
+
+/*the valid students taken courses and really enrolled*/
+  student_status  as (
+select t1.student_id,t3.mandatory,t4.grade from valid_student t1
+						inner join [dbo].[students] t2 on t1.student_id=t2.student_id
+						inner join [dbo].[courses] t3 on t2.major=t3.major
+						left join [dbo].[enrollments]  t4 on t1.student_id=t4.student_id and t3.course_id=t4.course_id
+						)
+
+, 
+aggegated_report as (
+select student_id , sum(case when mandatory='true' then 1 else 0 end) as total_mandatory_course,
+					sum(case when (mandatory='true' and grade='A') then 1 else 0 end) as total_gradeA_mandatory_course,
+					sum(case when mandatory='false' and grade is not null then 1 else 0 end) as total_taken_elective_course,
+					sum(case when mandatory ='false' and grade in ('A', 'B') then 1 else 0 end)  as total_elective_good_grades
+					from student_status 
+					group by student_id
+					)
+
+					select student_id from aggegated_report
+					where total_mandatory_course=total_gradeA_mandatory_course
+					and total_taken_elective_course>=2
+					and total_taken_elective_course=total_elective_good_grades
+
